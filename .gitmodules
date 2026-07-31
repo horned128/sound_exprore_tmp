@@ -1,0 +1,3 @@
+[submodule "hardware/papaya-pathfinder"]
+	path = hardware/papaya-pathfinder
+	url = https://github.com/tronxi/papaya-pathfinder.git
