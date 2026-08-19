@@ -47,7 +47,8 @@ int32_t main(void);
 void Reset_Handler (void)
 {
     /* Initialize system using BSP. */
-    SystemInit();
+
+	SystemInit();
 
     /* Call user application. */
     main();
