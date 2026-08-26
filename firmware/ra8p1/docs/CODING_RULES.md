@@ -94,7 +94,7 @@ command.left_target_rpm = 0;
 ```c
 #include "hal_data.h"                       /* FSP生成のHAL/BSPインスタンス、周辺機器設定、型定義 */
 #include <tk/tkernel.h>                     /* μT-Kernelのタスク制御API、型定義、共通定義 */
-#include "../config/cpu0_config.h"          /* CPU0の起動待ち時間、指令周期、操舵角試験値 */
+#include "../cpu0_config.h"                 /* CPU0の起動待ち時間、指令周期、操舵角試験値 */
 #include "../ipc/actuator_ipc_client.h"     /* CPU0からCPU1へ指令を送るIPCクライアントAPIとメッセージ型 */
 ```
 

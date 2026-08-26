@@ -4,7 +4,7 @@
  * ================================================================= */
 #include "tk_command.h"                                   /* CPU0指令タスクAPI */
 #include "tk_think.h"                                     /* 思考タスクへの異常通知 */
-#include "../../config/cpu0_config.h"                     /* 指令周期、優先度、タイムアウト */
+#include "../../cpu0_config.h"                            /* 指令周期、優先度、タイムアウト */
 #include "../../ipc/actuator_ipc_client.h"                /* CPU1へのIPC送信API */
 
 static T_CMTX const command_mutex_config = {
@@ -35,7 +35,12 @@ static uint32_t command_target_age_ms;                     /**< 最新目標の�
 static rover_motion_target_t command_target = {
     .left_target_rpm = 0,
     .right_target_rpm = 0,
-    .steering_target_deg = 0,
+    .actuator_enable = false,
+    .emergency_stop = true,
+};
+static rover_motion_target_t command_last_sent_target = {
+    .left_target_rpm = 0,
+    .right_target_rpm = 0,
     .actuator_enable = false,
     .emergency_stop = true,
 };
@@ -59,10 +64,10 @@ cpu0_fault_t cpu0_command_task_create(void) {
     command_target = (rover_motion_target_t) {
         .left_target_rpm = 0,
         .right_target_rpm = 0,
-        .steering_target_deg = 0,
         .actuator_enable = false,
         .emergency_stop = true,
     };
+    command_last_sent_target = command_target;
     g_cpu0_command_sequence = 0U;
     g_cpu0_command_send_count = 0U;
     g_cpu0_command_last_error = FSP_SUCCESS;
@@ -147,12 +152,38 @@ ER cpu0_command_set_target(const rover_motion_target_t * p_target) {
     ER err = tk_loc_mtx(command_mutex_id, TMO_FEVR);
     if (E_OK == err) {
         command_target = *p_target;
-        command_target.steering_target_deg = command_target.servo_target_deg[0];
         command_target_age_ms = 0U;
         command_timeout_reported = false;
         err = tk_unl_mtx(command_mutex_id);
     }
 
+    return err;
+}
+
+/** =================================================================*
+ * @brief  最新指令状態取得
+ * @param[out] p_snapshot 最新指令と経過時間
+ * @return μT-Kernelエラーコード
+ * ================================================================= */
+ER cpu0_command_snapshot_get(cpu0_command_snapshot_t * p_snapshot) {
+    if (NULL == p_snapshot) {
+        return E_PAR;
+    }
+    if (command_mutex_id <= 0) {
+        return E_NOEXS;
+    }
+
+    ER err = tk_loc_mtx(command_mutex_id, TMO_POL);
+    if (E_OK != err) {
+        return err;
+    }
+
+    p_snapshot->target = command_target;
+    p_snapshot->last_sent_target = command_last_sent_target;
+    p_snapshot->target_age_ms = command_target_age_ms;
+    p_snapshot->target_stale =
+        command_target_age_ms >= CPU0_COMMAND_TARGET_TIMEOUT_MS;
+    err = tk_unl_mtx(command_mutex_id);
     return err;
 }
 
@@ -202,7 +233,6 @@ static void cpu0_command_send_latest(void) {
     actuator_command_t command = actuator_command_make_safe();
     command.left_target_rpm = target.left_target_rpm;
     command.right_target_rpm = target.right_target_rpm;
-    command.steering_target_deg = target.servo_target_deg[0];
     command.actuator_enable = (clear_emergency_latch ? false : target.actuator_enable) ? 1U : 0U;
     command.emergency_stop = (clear_emergency_latch ? false : target.emergency_stop) ? 1U : 0U;
     for (uint32_t i = 0U; i < ACTUATOR_SERVO_COUNT; i++) {
@@ -216,6 +246,23 @@ static void cpu0_command_send_latest(void) {
         (void) cpu0_think_report_fault(CPU0_FAULT_IPC_SEND);
     } else {
         g_cpu0_command_send_count++;
+        ER const sent_lock_err = tk_loc_mtx(command_mutex_id,
+                                             TMO_FEVR);
+        if (E_OK == sent_lock_err) {
+            command_last_sent_target.left_target_rpm =
+                command.left_target_rpm;
+            command_last_sent_target.right_target_rpm =
+                command.right_target_rpm;
+            command_last_sent_target.actuator_enable =
+                0U != command.actuator_enable;
+            command_last_sent_target.emergency_stop =
+                0U != command.emergency_stop;
+            for (uint32_t i = 0U; i < ACTUATOR_SERVO_COUNT; i++) {
+                command_last_sent_target.servo_target_deg[i] =
+                    command.servo_target_deg[i];
+            }
+            (void) tk_unl_mtx(command_mutex_id);
+        }
         if (clear_emergency_latch) {
             command_emergency_reset_pending = false;
         } else if (target.emergency_stop) {

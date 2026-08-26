@@ -4,7 +4,7 @@
  * ================================================================= */
 #include "actuator_ipc_client.h"                            /* CPU0側IPCクライアントAPIとメッセージ型 */
 #include <tk/tkernel.h>                                     /* μT-Kernelのタスク遅延API */
-#include "../config/cpu0_config.h"                          /* CPU0のIPC再送待ち時間 */
+#include "../cpu0_config.h"                                 /* CPU0のIPC再送待ち時間 */
 
 /**< CPU1へ送るサーボ目標角メッセージID */
 static actuator_ipc_message_id_t const servo_target_message_ids[ACTUATOR_SERVO_COUNT] = {

@@ -20,6 +20,7 @@ static uint32_t const servo_outputs[SERVO_COUNT] = {
     SERVO_PWM_OUTPUT_RL,
 };
 
+/**< 各サーボの操舵方向（+1または-1） */
 static int8_t const servo_directions[SERVO_COUNT] = {
     SERVO_DIRECTION_FR,
     SERVO_DIRECTION_FL,
@@ -27,6 +28,7 @@ static int8_t const servo_directions[SERVO_COUNT] = {
     SERVO_DIRECTION_RL,
 };
 
+/**< 各輪の中心パルス補正値（単位: us） */
 volatile int16_t g_servo_center_trim_us[SERVO_COUNT] = {
     SERVO_CENTER_TRIM_US_FR,
     SERVO_CENTER_TRIM_US_FL,
@@ -34,6 +36,7 @@ volatile int16_t g_servo_center_trim_us[SERVO_COUNT] = {
     SERVO_CENTER_TRIM_US_RL,
 };
 
+/**< 各サーボへ設定したパルス幅（単位: us） */
 volatile uint16_t g_servo_pulse_us[SERVO_COUNT] = {
     SERVO_PULSE_CENTER_US,
     SERVO_PULSE_CENTER_US,
@@ -41,7 +44,7 @@ volatile uint16_t g_servo_pulse_us[SERVO_COUNT] = {
     SERVO_PULSE_CENTER_US,
 };
 
-static bool servo_running[SERVO_COUNT];                     /**< サーボPWM出力状態 */
+static bool servo_running[SERVO_COUNT];                      /**< サーボPWM出力状態 */
 /**< 各サーボ目標角度 */
 static int16_t servo_target_deg[SERVO_COUNT] = {
     STEERING_CENTER_DEG,

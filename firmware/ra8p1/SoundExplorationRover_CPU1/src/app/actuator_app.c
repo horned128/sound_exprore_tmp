@@ -3,7 +3,7 @@
  * @brief  CPU1アクチュエータアプリケーション
  * ================================================================= */
 #include "actuator_app.h"                                   /* CPU1アクチュエータアプリケーションAPI */
-#include "../config/actuator_config.h"                      /* アクチュエータ動作設定 */
+#include "../cpu1_config.h"                                 /* アクチュエータ動作設定 */
 #include "../drivers/dc_motor.h"                            /* DCモーター制御API */
 #include "../drivers/encoder.h"                             /* エンコーダ取得API */
 #include "../drivers/servo.h"                               /* サーボ制御API */
@@ -11,9 +11,8 @@
 
 volatile fsp_err_t g_actuator_last_error = FSP_SUCCESS;     /**< 最後に発生したFSPエラー */
 /**< アクチュエータ異常フラグ */
-volatile uint16_t  g_actuator_fault_flags = ACTUATOR_FAULT_NONE;
+volatile uint16_t g_actuator_fault_flags = ACTUATOR_FAULT_NONE;
 
-static actuator_status_t g_actuator_status;                 /**< CPU1からCPU0へ返す最新ステータス */
 static uint32_t g_command_elapsed_ms;                       /**< 最終指令受信からの経過時間 */
 static bool g_emergency_stop_latched;                       /**< 緊急停止ラッチ状態 */
 static bool g_initialized;                                  /**< アクチュエータ初期化完了状態 */
@@ -59,17 +58,6 @@ static void actuator_safe_stop(void) {
 }
 
 /** =================================================================*
- * @brief  アクチュエータステータス更新
- * ================================================================= */
-static void actuator_status_update(void) {
-    g_actuator_status.left_actual_rpm = encoder_rpm_get();
-    g_actuator_status.right_actual_rpm = encoder_right_rpm_get();
-    g_actuator_status.left_encoder_count = encoder_count_get();
-    g_actuator_status.right_encoder_count = encoder_right_count_get();
-    g_actuator_status.fault_flags = g_actuator_fault_flags;
-}
-
-/** =================================================================*
  * @brief  アクチュエータ指令適用
  * @param[in] p_received CPU0から受信した指令
  * ================================================================= */
@@ -91,17 +79,13 @@ static void actuator_apply_command(const actuator_command_t * p_received) {
                                                 STEERING_MAX_DEG,
                                                 &limited);
     }
-    command.steering_target_deg = command.servo_target_deg[0];
-
     g_actuator_fault_flags &= (uint16_t) ~(ACTUATOR_FAULT_COMMAND_TIMEOUT |
-                                            ACTUATOR_FAULT_COMMAND_LIMITED |
-                                            ACTUATOR_FAULT_MOTOR_CONTROL_NOT_READY);
+                                            ACTUATOR_FAULT_COMMAND_LIMITED);
     if (limited) {
         g_actuator_fault_flags |= ACTUATOR_FAULT_COMMAND_LIMITED;
     }
 
     g_command_elapsed_ms = 0U;
-    g_actuator_status.last_command_sequence = command.sequence_number;
 
     if (0U != command.emergency_stop) {
         g_emergency_stop_latched = true;
@@ -137,10 +121,7 @@ static void actuator_apply_command(const actuator_command_t * p_received) {
 
     fsp_err_t err = dc_motor_request_rpm(command.left_target_rpm,
                                          command.right_target_rpm);
-    if ((FSP_ERR_UNSUPPORTED == err) || (FSP_ERR_IN_USE == err)) {
-        g_actuator_fault_flags |= ACTUATOR_FAULT_MOTOR_CONTROL_NOT_READY;
-        (void) dc_motor_stop();
-    } else if (FSP_SUCCESS != err) {
+    if (FSP_SUCCESS != err) {
         g_actuator_last_error = err;
         g_actuator_fault_flags |= ACTUATOR_FAULT_DRIVER;
         actuator_safe_stop();
@@ -158,7 +139,6 @@ fsp_err_t actuator_app_init(void) {
     g_emergency_stop_latched = false;
     g_actuator_last_error = FSP_SUCCESS;
     g_actuator_fault_flags = ACTUATOR_FAULT_NONE;
-    g_actuator_status = (actuator_status_t) {0};
 
     fsp_err_t err = dc_motor_init();
     if (FSP_SUCCESS == err) {
@@ -220,18 +200,4 @@ void actuator_app_run_1ms(void) {
         actuator_safe_stop();
     }
 
-    actuator_status_update();
-}
-
-/** =================================================================*
- * @brief  アクチュエータステータス取得
- * @param[out] p_status CPU1の最新ステータス格納先
- * ================================================================= */
-void actuator_app_status_get(actuator_status_t * p_status) {
-    if (NULL != p_status) {
-        FSP_CRITICAL_SECTION_DEFINE;
-        FSP_CRITICAL_SECTION_ENTER;
-        *p_status = g_actuator_status;
-        FSP_CRITICAL_SECTION_EXIT;
-    }
 }

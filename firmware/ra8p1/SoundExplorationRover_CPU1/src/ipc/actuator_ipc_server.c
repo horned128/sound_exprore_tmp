@@ -101,9 +101,8 @@ void actuator_ipc_callback(ipc_callback_args_t * p_args) {
             g_staging_command.right_target_rpm = actuator_ipc_get_i16_payload(p_args->message);
             break;
 
-        case ACTUATOR_IPC_COMMAND_STEERING_TARGET_DEG:
-            g_staging_command.steering_target_deg = actuator_ipc_get_i16_payload(p_args->message);
-            g_staging_command.servo_target_deg[0] = g_staging_command.steering_target_deg;
+        case ACTUATOR_IPC_COMMAND_FR_TARGET_DEG:
+            g_staging_command.servo_target_deg[0] = actuator_ipc_get_i16_payload(p_args->message);
             break;
 
         case ACTUATOR_IPC_COMMAND_FL_TARGET_DEG:
